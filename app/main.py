@@ -1,9 +1,7 @@
-from typing import List
-from sqlalchemy.orm import Session, selectin_polymorphic
+from sqlalchemy.orm import Session
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPBasicCredentials
+from fastapi.security import HTTPBearer, HTTPBasicCredentials
 from starlette.responses import RedirectResponse
-from jwt import PyJWTError
 
 
 from app import schemas, models, database, crud
@@ -25,26 +23,7 @@ def get_db():
         db.close()
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/auth/login')
 auth = HTTPBearer()
-
-
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    credentials_exception = HTTPException(
-        status_code=401, detail='Could not validate credentials', headers={'WWW-Authenticate': 'Bearer'})
-    try:
-        payload = decode_access_token(data=token)
-        username: str = payload.get('username')
-        level: int = payload.get('level')
-        if username is None:
-            raise credentials_exception
-        token_data = schemas.TokenData(username=username, level=level)
-    except PyJWTError:
-        raise credentials_exception
-    user = crud.get_user_by_username(db, username=token_data.username)
-    if user is None:
-        raise credentials_exception
-    return user
 
 
 @app.get('/')
