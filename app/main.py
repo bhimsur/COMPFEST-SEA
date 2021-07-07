@@ -1,23 +1,16 @@
 from typing import List
-import uvicorn
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectin_polymorphic
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPBasicCredentials
-from datetime import timedelta
 from starlette.responses import RedirectResponse
 from jwt import PyJWTError
 
-# from .schemas import UserBase, UserInfo
-# from .models import Base, UserTable
-# from .database import engine, SessionLocal
-# from .crud import get_user
 
 from app import schemas, models, database, crud
 from app.utils import decode_access_token, create_access_token
 
 models.Base.metadata.create_all(bind=database.engine)
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 3600
 
 app = FastAPI()
 # Dependency
@@ -70,10 +63,8 @@ def post_login(input: schemas.UserLogin, db: Session = Depends(get_db)):
             raise HTTPException(
                 status_code=400, detail='Password is not correct!')
         else:
-            access_token_expires = timedelta(
-                minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
             access_token = create_access_token(
-                data={'username': input.username, 'level': user.level}, expires_delta=access_token_expires)
+                data={'username': input.username, 'level': user.level})
             return {'status': 200, 'message': 'success', 'data': {'access_token': access_token, 'token_type': 'Bearer'}}
 
 
@@ -86,10 +77,18 @@ def post_register(input: schemas.UserRegister, db: Session = Depends(get_db)):
     return crud.post_user(db, user=input)
 
 
-@app.get('/users', response_model=List[schemas.UserInfo], status_code=200)
-def get_users(db: Session = Depends(get_db), authorization: HTTPBasicCredentials = Depends(auth)):
-    records = db.query(models.UserTable).all()
-    if records:
-        return records
+def get_user_level(authorization: HTTPBasicCredentials = Depends(auth)):
+    payload = decode_access_token(data=authorization.credentials)
+    return payload
+
+
+@app.get('/users', status_code=200)
+def get_users(db: Session = Depends(get_db), authorization: schemas.UserInfo = Depends(get_user_level)):
+    if authorization['data']['level'] == 0:
+        return {'status': 200, 'message': 'success', 'data': 'user tidak diperbolehkan'}
     else:
-        raise HTTPException(status_code=404, detail='Data Not Found')
+        records = db.query(models.UserTable).all()
+        if records:
+            return records
+        else:
+            raise HTTPException(status_code=404, detail='Data Not Found')
