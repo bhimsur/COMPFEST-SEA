@@ -2,7 +2,7 @@ from typing import List
 import uvicorn
 from sqlalchemy.orm import Session
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPBasicCredentials
 from datetime import timedelta
 from starlette.responses import RedirectResponse
 from jwt import PyJWTError
@@ -33,6 +33,7 @@ def get_db():
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/auth/login')
+auth = HTTPBearer()
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
@@ -86,7 +87,7 @@ def post_register(input: schemas.UserRegister, db: Session = Depends(get_db)):
 
 
 @app.get('/users', response_model=List[schemas.UserInfo], status_code=200)
-def get_users(db: Session = Depends(get_db)):
+def get_users(db: Session = Depends(get_db), authorization: HTTPBasicCredentials = Depends(auth)):
     records = db.query(models.UserTable).all()
     if records:
         return records
