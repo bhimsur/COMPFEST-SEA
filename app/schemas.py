@@ -1,4 +1,3 @@
-from typing import List
 from pydantic import BaseModel
 
 
@@ -37,30 +36,27 @@ class TokenData(BaseModel):
     level: int = 1
 
 
-class DoctorBase(BaseModel):
+class AppointmentBase(BaseModel):
+    description: str
     doctor_name: str
 
 
-class DoctorInfo(DoctorBase):
+class AppointmentInfo(AppointmentBase):
     id: int
 
     class Config:
         orm_mode = True
 
 
-class AppointmentBase(BaseModel):
-    description: str
-
-
-class AppointmentDoctor(AppointmentBase):
-    doctor_id: int
-
-
-class AppointmentUser(AppointmentBase):
+class PatientUser(BaseModel):
     user_id: int
 
 
-class AppointmentInfo(AppointmentBase):
+class PatientBase(PatientUser):
+    appointment_id: int
+
+
+class PatientInfo(PatientBase):
     id: int
 
     class Config:

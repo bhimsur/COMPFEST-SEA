@@ -14,15 +14,15 @@ class UserTable(Base):
     level = Column(Integer)
 
 
-class DoctorTable(Base):
-    __tablename__ = 'doctor'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    doctor_name = Column(String)
-
-
 class AppointmentTable(Base):
     __tablename__ = 'appointment'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    doctor_id = Column(Integer)
+    doctor_name = Column(String)
     description = Column(String)
-    user_id = Column(String)
+
+
+class PatientTable(Base):
+    __tablename__ = 'patient'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer)
+    appointment_id = Column(Integer)
