@@ -13,7 +13,7 @@ models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI()
 
-origins = ['*', 'http://127.0.0.1:3000']
+origins = ['*', 'http://localhost:8080']
 app.add_middleware(CORSMiddleware,
                    allow_origins=origins,
                    allow_credentials=True,
@@ -115,7 +115,7 @@ def put_appointment(input: schemas.AppointmentInfo, db: Session = Depends(get_db
     if auth['data']['level'] == 0:
         return {'status': 403, 'message': 'success', 'data': 'Permission denied!'}
     else:
-        query = crud.post_appointment(db, appointment=input)
+        query = crud.post_appointment(db, put=input)
         if query:
             return {'status': 200, 'message': 'success', 'data': query}
         else:
@@ -148,18 +148,16 @@ def delete_patient_by_id(id: int, db: Session = Depends(get_db), auth: schemas.U
 @app.post('/appointment/apply/{id}', status_code=200)
 def post_patient(id: int, db: Session = Depends(get_db), auth: schemas.UserInfo = Depends(get_user_level)):
     query = crud.get_max_appointment_by_id(db, id)
-    if query['total_patient'] == 3:
-        return {'status': 400, 'message': 'failed', 'data': 'Fully booked!'}
-    else:
-        check = crud.get_patient_by_user_id_appointment_id(
+    if (query is None) or (query.total_patient < 3):
+        cek = crud.get_patient_by_user_id_appointment_id(
             db, id, auth['data']['id'])
-        if check:
-            return {'status': 400, 'message': 'failed!', 'data': 'Already registered'}
+        if cek is None:
+            q = crud.post_patient(db, id, auth['data']['id'])
+            return {'status': 200, 'message': 'success', 'data': q} if q else {'status': 400, 'message': 'failed!', 'data': 'Appointment not found'}
         else:
-            check = crud.get_appointment_by_id(db, id)
-            if check:
-                query = crud.post_patient(db, id, auth['data']['id'])
-                return {'status': 200, 'message': 'success', 'data': check} if query else {'status': 400, 'message': 'failed!', 'data': 'Appointment not found'}
+            return {'status': 400, 'message': 'failed!', 'data': 'Already registered'}
+    else:
+        return {'status': 400, 'message': 'failed', 'data': 'Fully booked!'}
 
 
 @app.get('/applied', status_code=200)
