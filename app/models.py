@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String
+from sqlalchemy.orm import column_property
 from app.database import Base
 
 
@@ -12,6 +13,7 @@ class UserTable(Base):
     username = Column(String)
     password = Column(String)
     level = Column(Integer)
+    fullname = column_property(first_name + ' ' + last_name)
 
 
 class AppointmentTable(Base):
