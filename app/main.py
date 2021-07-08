@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPBearer, HTTPBasicCredentials
 from starlette.responses import RedirectResponse
-
+from fastapi.middleware.cors import CORSMiddleware
 
 from app import schemas, models, database, crud
 from app.utils import decode_access_token, create_access_token
@@ -12,6 +12,15 @@ models.Base.metadata.create_all(bind=database.engine)
 
 
 app = FastAPI()
+
+origins = ['*', 'http://127.0.0.1:3000']
+app.add_middleware(CORSMiddleware,
+                   allow_origins=origins,
+                   allow_credentials=True,
+                   allow_methods=['*'],
+                   allow_headers=['*'])
+
+
 # Dependency
 
 
@@ -47,7 +56,7 @@ def post_login(input: schemas.UserLogin, db: Session = Depends(get_db)):
         else:
             access_token = create_access_token(
                 data={'username': input.username, 'level': user.level, 'id': user.id})
-            return {'status': 200, 'message': 'success', 'data': {'access_token': access_token, 'token_type': 'Bearer'}}
+            return {'status': 200, 'message': 'success', 'data': {'access_token': access_token, 'token_type': 'Bearer', 'user_level': user.level}}
 
 
 @app.post('/auth/register', status_code=201)
@@ -56,7 +65,9 @@ def post_register(input: schemas.UserRegister, db: Session = Depends(get_db)):
     if user:
         raise HTTPException(
             status_code=400, detail='Username has been registered!')
-    return crud.post_user(db, user=input)
+    else:
+        query = crud.post_user(db, user=input)
+        return {'status': 201, 'message': 'success', 'data': query} if query else {'status': 400, 'message': 'failed', 'data': {}}
 
 
 def get_user_level(authorization: HTTPBasicCredentials = Depends(auth)):
@@ -92,7 +103,7 @@ def post_appointment(input: schemas.AppointmentBase, db: Session = Depends(get_d
     if auth['data']['level'] == 0:
         return {'status': 403, 'message': 'success', 'data': 'Permission denied!'}
     else:
-        query = crud.post_appointment(db, appointment=input)
+        query = crud.post_appointment(db, post=input)
         if query:
             return {'status': 201, 'message': 'success', 'data': query}
         else:
@@ -111,7 +122,7 @@ def put_appointment(input: schemas.AppointmentInfo, db: Session = Depends(get_db
             return {'status': 400, 'message': 'failed', 'data': {}}
 
 
-@app.delete('/appointment/{id}', status_code=200)
+@app.delete('/appointment/{id}')
 def delete_appointment(id: int, db: Session = Depends(get_db), auth: schemas.UserInfo = Depends(get_user_level)):
     if auth['data']['level'] == 0:
         return {'status': 403, 'message': 'failed', 'data': 'Permission denied!'}
@@ -123,7 +134,7 @@ def delete_appointment(id: int, db: Session = Depends(get_db), auth: schemas.Use
 
 
 @app.get('/patient/{user_id}', status_code=200)
-def get_patient_by_used_id(db: Session = Depends(get_db), auth: schemas.UserInfo = Depends(get_user_level)):
+def get_patient_by_user_id(db: Session = Depends(get_db), auth: schemas.UserInfo = Depends(get_user_level)):
     query = crud.get_patient_by_user_id(db, auth['data']['id'])
     return {'status': 200, 'message': 'success', 'data': query} if query else {'status': 400, 'message': 'failed!', 'data': 'Appointment not found'}
 
@@ -134,11 +145,28 @@ def delete_patient_by_id(id: int, db: Session = Depends(get_db), auth: schemas.U
     return {'status': 200, 'message': 'success', 'data': query} if query else {'status': 400, 'message': 'failed!', 'data': 'Appointment not found'}
 
 
-@app.post('/appointment/apply/{id}', status_code=201)
+@app.post('/appointment/apply/{id}', status_code=200)
 def post_patient(id: int, db: Session = Depends(get_db), auth: schemas.UserInfo = Depends(get_user_level)):
     query = crud.get_max_appointment_by_id(db, id)
     if query['total_patient'] == 3:
         return {'status': 400, 'message': 'failed', 'data': 'Fully booked!'}
     else:
-        query = crud.post_patient(db, id, auth['data']['id'])
-        return {'status': 201, 'message': 'success', 'data': query} if query else {'status': 400, 'message': 'failed!', 'data': 'Appointment not found'}
+        check = crud.get_patient_by_user_id_appointment_id(
+            db, id, auth['data']['id'])
+        if check:
+            return {'status': 400, 'message': 'failed!', 'data': 'Already registered'}
+        else:
+            check = crud.get_appointment_by_id(db, id)
+            if check:
+                query = crud.post_patient(db, id, auth['data']['id'])
+                return {'status': 200, 'message': 'success', 'data': check} if query else {'status': 400, 'message': 'failed!', 'data': 'Appointment not found'}
+
+
+@app.get('/applied', status_code=200)
+def get_all_applied(db: Session = Depends(get_db), auth: schemas.UserInfo = Depends(get_user_level)):
+    if auth['data']['level'] == 0:
+        user_id = auth['data']['id']
+        query = crud.get_all_applied(db, user_id)
+        return {'status': 200, 'message': 'success', 'data': query}
+    else:
+        return {'status': 400, 'message': 'failed', 'data': 'patient only'}
