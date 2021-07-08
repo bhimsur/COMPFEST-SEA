@@ -48,23 +48,25 @@ def get_appointment_detail(db: Session, id: int):
         .join(PatientTable, AppointmentTable.id == PatientTable.appointment_id)\
         .join(UserTable, UserTable.id == PatientTable.user_id)\
         .filter(AppointmentTable.id == id)
-    q = query.with_entities(AppointmentTable.id.label('appointment_id'),
-                            func.group_concat(UserTable.last_name).label('daftar_pasien'))
+    q = query.with_entities(AppointmentTable.doctor_name,
+                            AppointmentTable.description, AppointmentTable.id.label(
+                                'appointment_id'),
+                            func.group_concat(UserTable.fullname).label('daftar_pasien'))
     return q.first()
 
 
-def post_appointment(db: Session, appointment: AppointmentInfo):
-    if appointment.id is None:
-        query = AppointmentTable(doctor_name=appointment.doctor_name,
-                                 description=appointment.description)
+def post_appointment(db: Session, post: AppointmentBase = None, put: AppointmentInfo = None):
+    if post:
+        query = AppointmentTable(doctor_name=post.doctor_name,
+                                 description=post.description)
         db.add(query)
         db.commit()
         db.refresh(query)
         return query
-    elif appointment.id > 0:
-        query = db.query(AppointmentTable).get(appointment.id)
-        props = {'doctor_name': appointment.doctor_name,
-                 'description': appointment.description}
+    elif put:
+        query = db.query(AppointmentTable).get(put.id)
+        props = {'doctor_name': put.doctor_name,
+                 'description': put.description}
         for key, value in props.items():
             setattr(query, key, value)
         db.commit()
@@ -83,6 +85,10 @@ def delete_appointment_by_id(db: Session, id: int):
 # Patient
 def get_patient_by_user_id(db: Session, user_id: int):
     return db.query(PatientTable).filter(PatientTable.user_id == user_id).all()
+
+
+def get_patient_by_user_id_appointment_id(db: Session, appointment_id: int, user_id: int):
+    return db.query(PatientTable).filter(PatientTable.user_id == user_id, PatientTable.appointment_id == appointment_id).first()
 
 
 def delete_patient_by_id(db: Session, user_id: int, id: int):
@@ -111,3 +117,15 @@ def get_max_appointment_by_id(db: Session, appointment_id: int):
     q = query.with_entities(PatientTable.appointment_id.label('appointment_id'),
                             func.count(PatientTable.appointment_id).label('total_patient'))
     return q.first()
+
+
+def get_all_applied(db: Session, user_id: int):
+    query = db.query(AppointmentTable)\
+        .join(PatientTable, PatientTable.appointment_id == AppointmentTable.id)\
+        .join(UserTable, UserTable.id == PatientTable.user_id)\
+        .filter(PatientTable.user_id == user_id)
+    q = query.with_entities(AppointmentTable.id.label('appointment_id'),
+                            AppointmentTable.doctor_name,
+                            AppointmentTable.description,
+                            PatientTable.id)
+    return q.all()
